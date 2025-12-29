@@ -138,7 +138,7 @@ class AntigravityProbe:
             try:
                 name = (p.info.get("name") or "").lower()
                 cmdline = " ".join(p.info.get("cmdline") or [])
-                if "language_server_macos" in name or "language_server_macos" in cmdline:
+                if "language_server" in name or "language_server" in cmdline:
                     if "antigravity" in cmdline.lower() or "--app_data_dir antigravity" in cmdline.lower():
                         return p
             except (psutil.NoSuchProcess, psutil.AccessDenied):
