@@ -1,6 +1,6 @@
 # Antigravity Usage Monitor
 
-A monitoring script to track usage quotas for Antigravity (Google's AI IDE) and Gemini API with a beautiful terminal UI.
+A monitoring script designed for **local use** to track usage quotas for Antigravity (Google's AI IDE) and Gemini API with a beautiful terminal UI. It works by inspecting local processes and configuration files on your machine.
 
 ## Features
 
@@ -11,7 +11,8 @@ A monitoring script to track usage quotas for Antigravity (Google's AI IDE) and 
 
 ## Installation & Setup
 
-This project uses [`uv`](https://github.com/astral-sh/uv) for fast dependency management.
+This project requires **Python 3.10** or higher.
+It uses [`uv`](https://github.com/astral-sh/uv) for fast dependency management.
 
 ### 1. Install `uv`
 If you don't have it yet:
