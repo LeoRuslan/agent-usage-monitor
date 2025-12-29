@@ -570,9 +570,6 @@ def main(provider: Optional[str] = None):
             items = ag.get("items", [])
             mapped = ag.get("mapped_primary")
             
-            # If we have a mapped primary, ensure it shows up first or is highlighted
-            # For simplicity, let's just list all, but mark the primary
-            
             # Determine primary label
             primary_label = mapped.get("label") if mapped else None
 
@@ -581,12 +578,6 @@ def main(provider: Optional[str] = None):
             
             for it in items:
                 label = it.get('label')
-                # Optional: still highlight primary with color but no asterisk? 
-                # User said "remove star", usually implies standardizing. 
-                # Let's keep it simple and just show label. 
-                # If we really want to know which one is active, we might keep color but remove star.
-                # But user asked "who has the star? remove it", implying confusion/dislike.
-                # So I will treat it same as others.
                 
                 frac = it.get('remaining_fraction')
                 
