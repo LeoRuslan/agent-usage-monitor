@@ -595,7 +595,7 @@ def main(provider: Optional[str] = None):
                     local_dt = reset_dt.astimezone()
                     # Format nicely: HH:MM:SS or YYYY-MM-DD HH:MM:SS
                     # Since it's usually soon, HH:MM:SS might be enough, but let's do short date if needed
-                    reset_display = local_dt.strftime("%H:%M:%S")
+                    reset_display = local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
                 bar_str = create_usage_bar(frac)
                 table.add_row(label, bar_str, reset_display, time_left)
@@ -652,4 +652,4 @@ def main(provider: Optional[str] = None):
 
 if __name__ == "__main__":
     
-    main(provider="antigravity")
+    main(provider='antigravity')

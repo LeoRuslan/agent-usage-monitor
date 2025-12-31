@@ -2,6 +2,7 @@
 
 A monitoring script designed for **local use** to track usage quotas for Antigravity (Google's AI IDE) and Gemini API with a beautiful terminal UI. It works by inspecting local processes and configuration files on your machine.
 
+
 ## Features
 
 - **Visual Dashboard**: Uses `rich` to display quotas with progress bars and color coding.
@@ -56,3 +57,7 @@ if __name__ == "__main__":
     # Options: None (check both), "antigravity", or "gemini"
     main(provider="antigravity")
 ```
+
+## Example Output
+
+![Antigravity Usage Example](assets/example_antigravity.png)
