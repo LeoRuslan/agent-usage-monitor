@@ -45,12 +45,12 @@ uv pip install -r requirements.txt
 
 Simply run the script to see the dashboard:
 ```bash
-python usage_monitor.py
+python main.py
 ```
 
 ### Configuration
 
-To check only a specific provider (e.g., only "Antigravity" or "Gemini"), edit the `main()` call at the bottom of `usage_monitor.py`:
+To check only a specific provider (e.g., only "Antigravity" or "Gemini"), edit the `main()` call at the bottom of `main.py`:
 
 ```python
 if __name__ == "__main__":
