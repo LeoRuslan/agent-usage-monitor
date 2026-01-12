@@ -37,13 +37,41 @@ class GeminiProbe:
         except Exception:
             return None
 
+    def _discover_gemini_project_id(self, access_token: str) -> Optional[str]:
+        """Discover the Gemini project ID from GCP projects."""
+        projects_endpoint = "https://cloudresourcemanager.googleapis.com/v1/projects"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        try:
+            if self.verbose:
+                print("[gemini] discovering project ID from GCP...")
+            r = self.session.get(projects_endpoint, headers=headers, timeout=self.timeout)
+            r.raise_for_status()
+            data = r.json()
+            for project in data.get("projects", []):
+                project_id = project.get("projectId", "")
+                if project_id.startswith("gen-lang-client"):
+                    if self.verbose:
+                        print(f"[gemini] found Gemini project: {project_id}")
+                    return project_id
+            if self.verbose:
+                print("[gemini] no gen-lang-client project found")
+            return None
+        except Exception as e:
+            if self.verbose:
+                print(f"[gemini] project discovery failed: {e}")
+            return None
+
     def try_api_quota(self, access_token: str) -> Optional[Dict[str, Any]]:
         """Try to get quota via API endpoint."""
         headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
         try:
+            # Discover project ID for accurate quota data
+            project_id = self._discover_gemini_project_id(access_token)
+            payload = {"project": project_id} if project_id else {}
+            
             if self.verbose:
-                print("[gemini] calling quota API endpoint")
-            r = self.session.post(GEMINI_QUOTA_ENDPOINT, headers=headers, json={}, timeout=self.timeout)
+                print(f"[gemini] calling quota API endpoint with project={project_id}")
+            r = self.session.post(GEMINI_QUOTA_ENDPOINT, headers=headers, json=payload, timeout=self.timeout)
             r.raise_for_status()
             return r.json()
         except Exception as e:
@@ -88,7 +116,71 @@ class GeminiProbe:
 
     @staticmethod
     def _extract_quota_from_api_resp(resp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Extract quota info from API response."""
+        """Extract quota info from API response, grouped by tier (Pro/Flash)."""
+        buckets = resp.get("buckets", [])
+        
+        if not buckets:
+            # Fallback to legacy parsing
+            return GeminiProbe._extract_quota_legacy(resp)
+        
+        # Parse all model quotas
+        model_quotas: List[Dict[str, Any]] = []
+        for bucket in buckets:
+            model_id = bucket.get("modelId")
+            fraction = bucket.get("remainingFraction")
+            reset_time_str = bucket.get("resetTime")
+            
+            if model_id and fraction is not None:
+                reset_dt = try_parse_time(reset_time_str) if reset_time_str else None
+                model_quotas.append({
+                    "model_id": model_id,
+                    "remaining_fraction": float(fraction),
+                    "reset_time": reset_dt.isoformat() if reset_dt else None,
+                })
+        
+        if not model_quotas:
+            return None
+        
+        # Group by tier: Pro and Flash
+        pro_quotas = [q for q in model_quotas if "pro" in q["model_id"].lower()]
+        flash_quotas = [q for q in model_quotas if "flash" in q["model_id"].lower()]
+        
+        # Find minimum (most used) in each tier
+        pro_min = min(pro_quotas, key=lambda x: x["remaining_fraction"]) if pro_quotas else None
+        flash_min = min(flash_quotas, key=lambda x: x["remaining_fraction"]) if flash_quotas else None
+        
+        # Build tier summaries
+        tiers: List[Dict[str, Any]] = []
+        if pro_min:
+            tiers.append({
+                "tier": "Pro",
+                "remaining_fraction": pro_min["remaining_fraction"],
+                "reset_time": pro_min["reset_time"],
+                "models": [q["model_id"] for q in pro_quotas],
+            })
+        if flash_min:
+            tiers.append({
+                "tier": "Flash",
+                "remaining_fraction": flash_min["remaining_fraction"],
+                "reset_time": flash_min["reset_time"],
+                "models": [q["model_id"] for q in flash_quotas],
+            })
+        
+        # For backward compatibility, also provide overall min
+        all_quotas = pro_quotas + flash_quotas
+        overall_min = min(all_quotas, key=lambda x: x["remaining_fraction"]) if all_quotas else None
+        
+        return {
+            "remaining_fraction": overall_min["remaining_fraction"] if overall_min else None,
+            "reset_time": overall_min["reset_time"] if overall_min else None,
+            "tiers": tiers,
+            "model_quotas": model_quotas,
+            "raw": resp,
+        }
+    
+    @staticmethod
+    def _extract_quota_legacy(resp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Legacy parsing for non-bucket responses."""
         def find_keys(d: Any, keys: List[str]) -> List[Any]:
             found = []
             if isinstance(d, dict):
