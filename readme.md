@@ -50,12 +50,17 @@ python main.py
 
 ### Configuration
 
-To check only a specific provider (e.g., only "Antigravity" or "Gemini"), edit the `main()` call at the bottom of `main.py`:
+To check only a specific provider, use the `--provider` argument:
 
-```python
-if __name__ == "__main__":
-    # Options: None (check both), "antigravity", or "gemini"
-    main(provider="antigravity")
+```bash
+# Check both providers (default)
+python main.py
+
+# Check only Antigravity
+python main.py --provider antigravity
+
+# Check only Gemini CLI
+python main.py --provider gemini_cli
 ```
 
 ## Example Output

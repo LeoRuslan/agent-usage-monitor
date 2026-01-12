@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 from typing import Any, Dict, Optional
 
@@ -23,7 +22,6 @@ def main(provider: Optional[str] = None) -> None:
         provider: Optional provider filter - "antigravity", "gemini", or None for both.
     """
     verbose = False
-    json_output = False
     
     results: Dict[str, Any] = {}
     
@@ -44,9 +42,6 @@ def main(provider: Optional[str] = None) -> None:
         except Exception as e:
             results["gemini_cli"] = {"ok": False, "reason": f"exception: {e}"}
 
-    if json_output:
-        print(json.dumps(results, indent=2, default=str))
-        return
 
     # Rich Output
     console = Console()
@@ -65,8 +60,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--provider",
         choices=["antigravity", "gemini_cli", "all"],
-        default="antigravity",
-        help="Provider to check: antigravity, gemini_cli, or all (default: antigravity)"
+        default="all",
+        help="Provider to check: antigravity, gemini_cli, or all (default: all)"
     )
     args = parser.parse_args()
     
