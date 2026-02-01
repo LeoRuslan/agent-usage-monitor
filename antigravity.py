@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import psutil
 import requests
 
+from base import BaseProbe
 from config import (
     ANTIGRAVITY_GETUNLEASH_PATH,
     ANTIGRAVITY_GETUSERSTATUS_PATH,
@@ -33,14 +34,13 @@ class AntigravityQuotaItem:
     reset_time: Optional[datetime]
 
 
-class AntigravityProbe:
+class AntigravityProbe(BaseProbe):
     """Probes Antigravity language server for quota information."""
 
     def __init__(self, timeout: float = DEFAULT_TIMEOUT, verify_ssl: bool = VERIFY_SSL, verbose: bool = False):
-        self.timeout = timeout
+        super().__init__(timeout=timeout, verbose=verbose)
         self.session = requests.Session()
         self.verify_ssl = verify_ssl
-        self.verbose = verbose
 
     def find_process(self) -> Optional[psutil.Process]:
         """Find the Antigravity language server process."""
@@ -100,13 +100,11 @@ class AntigravityProbe:
         path = ANTIGRAVITY_GETUNLEASH_PATH
         for port in ports:
             url = f"https://127.0.0.1:{port}{path}"
-            if self.verbose:
-                print(f"[antigravity] probing {url}")
+            self._log(f"[antigravity] probing {url}")
             try:
                 r = self.session.post(url, headers=headers, json={}, timeout=2.0, verify=self.verify_ssl)
                 if r.status_code == 200:
-                    if self.verbose:
-                        print(f"[antigravity] probe ok on port {port}")
+                    self._log(f"[antigravity] probe ok on port {port}")
                     return port
             except requests.RequestException:
                 continue
@@ -120,8 +118,7 @@ class AntigravityProbe:
         payload = {"ideName": "antigravity", "extensionName": "antigravity", "locale": "en", "ideVersion": "unknown"}
 
         try:
-            if self.verbose:
-                print(f"[antigravity] POST {url_primary}")
+            self._log(f"[antigravity] POST {url_primary}")
             r = self.session.post(url_primary, headers=headers, json=payload, timeout=self.timeout, verify=self.verify_ssl)
             if r.status_code == 200:
                 return r.json()
@@ -129,8 +126,7 @@ class AntigravityProbe:
             pass
 
         try:
-            if self.verbose:
-                print(f"[antigravity] POST fallback {url_fallback}")
+            self._log(f"[antigravity] POST fallback {url_fallback}")
             r = self.session.post(url_fallback, headers=headers, json=payload, timeout=self.timeout, verify=self.verify_ssl)
             if r.status_code == 200:
                 return r.json()
@@ -211,15 +207,13 @@ class AntigravityProbe:
             cmdline = ""
         pid = p.pid
 
-        if self.verbose:
-            print(f"[antigravity] pid={pid} cmdline={cmdline}")
+        self._log(f"[antigravity] pid={pid} cmdline={cmdline}")
 
         csrf_token = self._extract_flag_from_cmd(cmdline, "--csrf_token")
         ext_port_flag = self._extract_flag_from_cmd(cmdline, "--extension_server_port")
         ports = self.get_listening_ports(pid)
 
-        if self.verbose:
-            print(f"[antigravity] listening ports: {ports} ext_port_flag={ext_port_flag}")
+        self._log(f"[antigravity] listening ports: {ports} ext_port_flag={ext_port_flag}")
 
         if ext_port_flag:
             try:

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from base import BaseProbe
 from config import (
     GEMINI_QUOTA_ENDPOINT,
     DEFAULT_GEMINI_CREDS,
@@ -19,14 +20,13 @@ from config import (
 from utils import try_parse_time
 
 
-class GeminiProbe:
+class GeminiProbe(BaseProbe):
     """Probes Gemini API or CLI for quota information."""
 
     def __init__(self, timeout: float = DEFAULT_TIMEOUT, gemini_cli: Optional[str] = None, verbose: bool = False):
-        self.timeout = timeout
+        super().__init__(timeout=timeout, verbose=verbose)
         self.gemini_cli = gemini_cli or os.environ.get("GEMINI_CLI_PATH", "gemini")
         self.session = requests.Session()
-        self.verbose = verbose
 
     @staticmethod
     def _read_json_file(path: str) -> Optional[Dict[str, Any]]:
@@ -42,23 +42,19 @@ class GeminiProbe:
         projects_endpoint = "https://cloudresourcemanager.googleapis.com/v1/projects"
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
-            if self.verbose:
-                print("[gemini] discovering project ID from GCP...")
+            self._log("[gemini] discovering project ID from GCP...")
             r = self.session.get(projects_endpoint, headers=headers, timeout=self.timeout)
             r.raise_for_status()
             data = r.json()
             for project in data.get("projects", []):
                 project_id = project.get("projectId", "")
                 if project_id.startswith("gen-lang-client"):
-                    if self.verbose:
-                        print(f"[gemini] found Gemini project: {project_id}")
+                    self._log(f"[gemini] found Gemini project: {project_id}")
                     return project_id
-            if self.verbose:
-                print("[gemini] no gen-lang-client project found")
+            self._log("[gemini] no gen-lang-client project found")
             return None
         except Exception as e:
-            if self.verbose:
-                print(f"[gemini] project discovery failed: {e}")
+            self._log(f"[gemini] project discovery failed: {e}")
             return None
 
     def try_api_quota(self, access_token: str) -> Optional[Dict[str, Any]]:
@@ -68,15 +64,13 @@ class GeminiProbe:
             # Discover project ID for accurate quota data
             project_id = self._discover_gemini_project_id(access_token)
             payload = {"project": project_id} if project_id else {}
-            
-            if self.verbose:
-                print(f"[gemini] calling quota API endpoint with project={project_id}")
+
+            self._log(f"[gemini] calling quota API endpoint with project={project_id}")
             r = self.session.post(GEMINI_QUOTA_ENDPOINT, headers=headers, json=payload, timeout=self.timeout)
             r.raise_for_status()
             return r.json()
         except Exception as e:
-            if self.verbose:
-                print(f"[gemini] api call failed: {e}")
+            self._log(f"[gemini] api call failed: {e}")
             return None
 
     def try_cli_stats(self) -> Optional[Dict[str, Any]]:
@@ -88,29 +82,24 @@ class GeminiProbe:
             [self.gemini_cli, "/stats"],
         ]
         for cmd in attempts:
-            if self.verbose:
-                print(f"[gemini] trying CLI: {' '.join(cmd)}")
+            self._log(f"[gemini] trying CLI: {' '.join(cmd)}")
             try:
                 out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True, timeout=self.timeout)
                 out = out.strip()
-                if self.verbose:
-                    print(f"[gemini] CLI output (first 500 chars):\n{out[:500]}")
+                self._log(f"[gemini] CLI output (first 500 chars):\n{out[:500]}")
                 try:
                     parsed = json.loads(out)
                     return {"source": "cli-json", "payload": parsed}
                 except Exception:
                     return {"source": "cli-raw", "payload": out}
             except FileNotFoundError:
-                if self.verbose:
-                    print(f"[gemini] binary not found at {self.gemini_cli}")
+                self._log(f"[gemini] binary not found at {self.gemini_cli}")
                 return None
             except subprocess.CalledProcessError as e:
-                if self.verbose:
-                    print(f"[gemini] CLI returned non-zero: {e.returncode}; output (first 300 chars):\n{e.output[:300]}")
+                self._log(f"[gemini] CLI returned non-zero: {e.returncode}; output (first 300 chars):\n{e.output[:300]}")
                 continue
             except Exception as e:
-                if self.verbose:
-                    print(f"[gemini] CLI attempt failed: {e}")
+                self._log(f"[gemini] CLI attempt failed: {e}")
                 continue
         return None
 
@@ -249,17 +238,15 @@ class GeminiProbe:
         creds_path = os.environ.get("GEMINI_CREDS_PATH", DEFAULT_GEMINI_CREDS)
         settings_path = os.environ.get("GEMINI_SETTINGS_PATH", DEFAULT_GEMINI_SETTINGS)
 
-        if self.verbose:
-            print(f"[gemini] gemini_cli={self.gemini_cli}")
-            print(f"[gemini] creds_path={creds_path} exists={os.path.exists(creds_path)}")
-            print(f"[gemini] settings_path={settings_path} exists={os.path.exists(settings_path)}")
+        self._log(f"[gemini] gemini_cli={self.gemini_cli}")
+        self._log(f"[gemini] creds_path={creds_path} exists={os.path.exists(creds_path)}")
+        self._log(f"[gemini] settings_path={settings_path} exists={os.path.exists(settings_path)}")
 
         creds = self._read_json_file(creds_path)
         if creds and isinstance(creds, dict):
             token = creds.get("access_token") or creds.get("token")
             if token:
-                if self.verbose:
-                    print("[gemini] found access token in creds, trying API")
+                self._log("[gemini] found access token in creds, trying API")
                 api_resp = self.try_api_quota(token)
                 if api_resp:
                     parsed = self._extract_quota_from_api_resp(api_resp)
@@ -267,8 +254,7 @@ class GeminiProbe:
                         return {"ok": True, "method": "api", "parsed": parsed}
                     return {"ok": True, "method": "api", "parsed": None, "raw": api_resp}
 
-        if self.verbose:
-            print("[gemini] trying CLI fallback")
+        self._log("[gemini] trying CLI fallback")
         cli_resp = self.try_cli_stats()
         if cli_resp:
             if cli_resp.get("source") == "cli-json":
