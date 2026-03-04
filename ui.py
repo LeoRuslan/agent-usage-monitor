@@ -1,149 +1,103 @@
-"""Rich UI rendering for quota display."""
+"""Rich UI rendering for normalized provider snapshots."""
 
-from typing import Any, Dict
+from __future__ import annotations
 
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
+from datetime import datetime
+from typing import Iterable
+
 from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
-from utils import try_parse_time, create_usage_bar, format_time_remaining
+from models import ProviderSnapshot, QuotaItem
+from utils import create_usage_bar, format_time_remaining
+
+APP_VERSION = "0.1.0"
 
 
-def render_antigravity(console: Console, result: Dict[str, Any]) -> None:
-    """Render Antigravity quota results as a Rich table."""
-    console.print(Panel("[bold blue]Antigravity (IDE)[/bold blue]", expand=False, border_style="blue"))
-    
-    if not result.get("ok"):
-        console.print(f"[bold red]Error:[/bold red] {result.get('reason')}")
+def _format_number(value: float) -> str:
+    if abs(value - round(value)) < 0.01:
+        return str(int(round(value)))
+    return f"{value:.1f}"
+
+
+def _format_remaining(item: QuotaItem) -> str:
+    if item.unit == "percent":
+        if item.remaining_value is not None:
+            return f"{_format_number(item.remaining_value)}% left"
+        if item.remaining_fraction is not None:
+            return f"{_format_number(item.remaining_fraction * 100)}% left"
+    elif item.unit == "credits":
+        if item.remaining_value is not None:
+            return f"{_format_number(item.remaining_value)} credits left"
+    elif item.unit == "usd":
+        if item.remaining_value is not None:
+            return f"${_format_number(item.remaining_value)} left"
+    elif item.unit == "tokens":
+        if item.remaining_value is not None:
+            return f"{_format_number(item.remaining_value)} tokens left"
+    return "Unknown"
+
+
+def _format_reset(reset_at: datetime | None) -> str:
+    if not reset_at:
+        return "-"
+    return f"Resets in {format_time_remaining(reset_at)}"
+
+
+def render_snapshot(console: Console, snapshot: ProviderSnapshot) -> None:
+    """Render a single provider snapshot."""
+    title = f"[bold]{snapshot.name}[/bold]"
+    if snapshot.plan:
+        title += f" [dim]({snapshot.plan})[/dim]"
+    if snapshot.meta.get("stale"):
+        title += " [yellow][cached][/yellow]"
+    console.print(Panel(title, expand=False, border_style="cyan"))
+
+    if not snapshot.ok:
+        console.print(f"[bold red]Error:[/bold red] {snapshot.error or 'unknown error'}")
+        console.print()
+        return
+
+    if not snapshot.items:
+        console.print("[yellow]No quota items found.[/yellow]")
+        console.print()
         return
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold cyan", show_lines=True)
-    table.add_column("Model / Label")
-    table.add_column("Usage Quota", justify="left")
-    table.add_column("Reset Time", style="dim")
-    table.add_column("Time Left", style="bold yellow")
+    table.add_column("Quota")
+    table.add_column("Usage", justify="left")
+    table.add_column("Status", style="dim")
 
-    items = result.get("items", [])
-    
-    # Sort by quota ascending, then by label
-    items.sort(key=lambda x: (x.get("remaining_fraction") or 0.0, (x.get("label") or "").lower()))
-    
-    for it in items:
-        label = it.get('label')
-        frac = it.get('remaining_fraction')
-        
-        reset_str = it.get('reset_time')
-        reset_dt = None
-        if reset_str:
-            reset_dt = try_parse_time(reset_str)
-
-        time_left = format_time_remaining(reset_dt)
-        
-        reset_display = "-"
-        if reset_dt:
-            local_dt = reset_dt.astimezone()
-            reset_display = local_dt.strftime("%Y-%m-%d %H:%M:%S")
-
-        bar_str = create_usage_bar(frac)
-        table.add_row(label, bar_str, reset_display, time_left)
+    sorted_items = sorted(snapshot.items, key=lambda item: (item.remaining_fraction or 0.0, item.label.lower()))
+    for item in sorted_items:
+        bar_str = create_usage_bar(item.remaining_fraction)
+        left_text = _format_remaining(item)
+        reset_text = _format_reset(item.reset_at)
+        table.add_row(item.label, f"{bar_str}\n[dim]{left_text}[/dim]", reset_text)
 
     console.print(table)
     console.print()
 
 
-def _format_model_name(model_id: str) -> str:
-    """Convert model ID to human-readable name."""
-    # e.g., "gemini-2.5-pro" -> "Gemini 2.5 Pro"
-    # e.g., "gemini-3-flash-preview" -> "Gemini 3 Flash (Preview)"
-    name = model_id.replace("gemini-", "Gemini ")
-    name = name.replace("-preview", " (Preview)")
-    name = name.replace("-lite", " Lite")
-    name = name.replace("-pro", " Pro")
-    name = name.replace("-flash", " Flash")
-    # Clean up double spaces
-    name = " ".join(name.split())
-    return name
+def _render_footer(console: Console, snapshots: list[ProviderSnapshot]) -> None:
+    """Render global footer with version and next update."""
+    next_updates = [s.next_update for s in snapshots if s.next_update]
+    next_update_text = ""
+    if next_updates:
+        earliest = min(next_updates)
+        remaining = format_time_remaining(earliest)
+        if remaining:
+            next_update_text = f" │ Next update in {remaining}"
+
+    console.print(f"[dim]v{APP_VERSION}{next_update_text}[/dim]")
 
 
-def render_gemini_cli(console: Console, result: Dict[str, Any]) -> None:
-    """Render Gemini CLI quota results."""
-    console.print(Panel("[bold magenta]Gemini CLI[/bold magenta]", expand=False, border_style="magenta"))
-
-    if not result.get("ok"):
-        console.print(f"[bold red]Error:[/bold red] {result.get('reason')}")
-        return
-
-    method = result.get("method")
-    parsed = result.get("parsed")
-    
-    # Show method
-    console.print(f"   [dim]Method:[/dim] {method}")
-    
-    if parsed:
-        model_quotas = parsed.get("model_quotas", [])
-        
-        if model_quotas:
-            # Show detailed model table
-            table = Table(box=box.ROUNDED, show_header=True, header_style="bold cyan", show_lines=True)
-            table.add_column("Model")
-            table.add_column("Remaining Quota", justify="left")
-            table.add_column("Reset Time", style="dim")
-            table.add_column("Time Left", style="bold yellow")
-            
-            # Sort by remaining fraction (lowest first = most used)
-            model_quotas_sorted = sorted(model_quotas, key=lambda x: (x.get("remaining_fraction") or 0.0, x.get("model_id", "")))
-            
-            for q in model_quotas_sorted:
-                model_name = _format_model_name(q.get("model_id", "Unknown"))
-                frac = q.get("remaining_fraction")
-                reset_str = q.get("reset_time")
-                
-                reset_dt = None
-                if reset_str:
-                    reset_dt = try_parse_time(reset_str)
-                
-                time_left = format_time_remaining(reset_dt)
-                
-                reset_display = "-"
-                if reset_dt:
-                    local_dt = reset_dt.astimezone()
-                    reset_display = local_dt.strftime("%Y-%m-%d %H:%M:%S")
-                
-                bar_str = create_usage_bar(frac)
-                table.add_row(model_name, bar_str, reset_display, time_left)
-            
-            console.print(table)
-        else:
-            # Fallback to legacy single-value display
-            rem = parsed.get("remaining_fraction")
-            reset_str = parsed.get("reset_time")
-            
-            reset_dt = None
-            if reset_str:
-                reset_dt = try_parse_time(reset_str)
-            
-            time_left = format_time_remaining(reset_dt)
-            
-            reset_display = "N/A"
-            if reset_dt:
-                local_dt = reset_dt.astimezone()
-                reset_display = local_dt.strftime("%Y-%m-%d %H:%M:%S")
-            
-            grid = Table.grid(padding=(0, 2))
-            grid.add_column(style="bold white", justify="right")
-            grid.add_column(style="white")
-            
-            bar_str = create_usage_bar(rem, width=30)
-            grid.add_row("Remaining:", bar_str)
-            grid.add_row("Reset Time:", f"{reset_display}  ([bold yellow]in {time_left}[/bold yellow])")
-            console.print(grid)
-    else:
-        console.print("[yellow]Raw output (parsing failed)[/yellow]")
-        
-    if not parsed and (result.get("raw") or result.get("raw_text")):
-        console.print(Panel(str(result.get("raw") or result.get("raw_text"))[:500], title="Raw Output", border_style="dim"))
-    
-    console.print()
-
+def render_snapshots(console: Console, snapshots: Iterable[ProviderSnapshot]) -> None:
+    """Render all provider snapshots."""
+    snapshot_list = list(snapshots)
+    for snapshot in snapshot_list:
+        render_snapshot(console, snapshot)
+    _render_footer(console, snapshot_list)
 

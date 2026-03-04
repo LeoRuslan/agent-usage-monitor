@@ -26,16 +26,6 @@ def try_parse_time(v: Any) -> Optional[datetime]:
     return None
 
 
-def pretty_pct(remaining_fraction: Optional[float]) -> str:
-    """Format fraction as percentage string."""
-    if remaining_fraction is None:
-        return "?"
-    try:
-        return f"{remaining_fraction * 100:.1f}%"
-    except Exception:
-        return "?"
-
-
 def get_color_for_fraction(fraction: Optional[float]) -> str:
     """Get Rich color based on remaining fraction."""
     if fraction is None:

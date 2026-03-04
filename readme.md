@@ -1,14 +1,15 @@
-# Antigravity Usage Monitor
+# AI Usage Monitor
 
-A monitoring script designed for **local use** to track usage quotas for Antigravity (Google's AI IDE) and Gemini API with a beautiful terminal UI. It works by inspecting local processes and configuration files on your machine.
+A local monitoring script to track usage quotas for AI providers with a terminal dashboard.  
+The codebase now uses a provider registry, so new providers can be added as isolated adapters.
 
 
 ## Features
 
-- **Visual Dashboard**: Uses `rich` to display quotas with progress bars and color coding.
-- **Quota Tracking**: Monitors remaining usage for various models (Claude, Gemini, GPT-OSS).
-- **Time Remaining**: Calculates and displays exactly how much time is left until the daily quota resets.
-- **Local Time**: Automatically converts reset times to your local timezone.
+- **Provider Registry**: Providers are loaded through a unified registry/collector flow.
+- **Normalized Data Model**: All providers return the same quota snapshot format.
+- **Visual Dashboard**: Uses `rich` to display progress bars and reset timers.
+- **JSON Export**: `--format json` for automation and widget/back-end integration.
 
 ## Installation & Setup
 
@@ -48,9 +49,9 @@ Simply run the script to see the dashboard:
 python main.py
 ```
 
-### Configuration
+### Provider Selection
 
-To check only a specific provider, use the `--provider` argument:
+Use `--provider` to limit checks to one provider:
 
 ```bash
 # Check both providers (default)
@@ -59,9 +60,40 @@ python main.py
 # Check only Antigravity
 python main.py --provider antigravity
 
-# Check only Gemini CLI
-python main.py --provider gemini_cli
+# Check only Gemini (gemini_cli alias is still supported)
+python main.py --provider gemini
+
+# Check ChatGPT (codex alias is also supported)
+python main.py --provider chatgpt
+
+# Check Windsurf
+python main.py --provider windsurf
+
+# Check Amp
+python main.py --provider amp
 ```
+
+### Output Formats
+```bash
+# Rich terminal output (default)
+python main.py --format rich
+
+# Machine-readable output
+python main.py --format json
+```
+
+### Add a New Provider
+1. Copy `providers/_template.py`.
+2. Implement `collect()` and return normalized `QuotaItem` objects.
+3. Register the class in `providers/registry.py`.
+
+Optional CLI path env vars for new providers:
+- `WINDSURF_CLI_PATH` (default: `windsurf`)
+- `AMP_CLI_PATH` (default: `amp`)
+
+Provider auth env vars:
+- `CHATGPT_ACCESS_TOKEN` (or `OPENAI_SESSION_TOKEN`, `CHATGPT_TOKEN`)
+- `AMP_USAGE_ENDPOINT` + `AMP_AUTH_TOKEN` (API fallback when Amp CLI is unavailable)
 
 ## Example Output
 
