@@ -54,7 +54,7 @@ python main.py
 Use `--provider` to limit checks to one provider:
 
 ```bash
-# Check both providers (default)
+# Check all providers (default)
 python main.py
 
 # Check only Antigravity
@@ -69,8 +69,6 @@ python main.py --provider chatgpt
 # Check Windsurf
 python main.py --provider windsurf
 
-# Check Amp
-python main.py --provider amp
 ```
 
 ### Output Formats
@@ -89,11 +87,9 @@ python main.py --format json
 
 Optional CLI path env vars for new providers:
 - `WINDSURF_CLI_PATH` (default: `windsurf`)
-- `AMP_CLI_PATH` (default: `amp`)
 
 Provider auth env vars:
 - `CHATGPT_ACCESS_TOKEN` (or `OPENAI_SESSION_TOKEN`, `CHATGPT_TOKEN`)
-- `AMP_USAGE_ENDPOINT` + `AMP_AUTH_TOKEN` (API fallback when Amp CLI is unavailable)
 
 ## Example Output
 

@@ -1,7 +1,7 @@
 # Implementation Plan: Extensible AI Quota Monitor
 
 ## Goal
-Build a quota monitor similar to the shown UI, with fast onboarding of new providers (OpenAI, Windsurf, Amp, etc.) without changing core orchestration logic.
+Build a quota monitor similar to the shown UI, with fast onboarding of new providers (OpenAI, Windsurf, etc.) without changing core orchestration logic.
 
 ## Product Requirements (from the target UI)
 1. Display multiple providers in stacked cards.
@@ -159,7 +159,6 @@ agent_usage_monitor/
     gemini.py
     openai.py
     windsurf.py
-    amp.py
   ui/
     __init__.py
     render.py
@@ -176,7 +175,7 @@ agent_usage_monitor/
 1. `M1`: Registry + normalized models + migrated current providers.
 2. `M2`: Orchestrator + cache + robust error handling.
 3. `M3`: UI parity with target layout in terminal.
-4. `M4`: Add Windsurf + Amp adapters.
+4. `M4`: Add Windsurf adapters.
 5. `M5`: JSON export + macOS widget integration.
 
 ## Risks and Mitigations

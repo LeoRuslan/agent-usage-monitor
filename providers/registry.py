@@ -9,7 +9,6 @@ from providers.base_provider import BaseProvider
 
 PROVIDER_SPECS: Dict[str, str] = {
     "antigravity": "providers.antigravity_provider:AntigravityProvider",
-    "amp": "providers.amp_provider:AmpProvider",
     "chatgpt": "providers.chatgpt_provider:ChatGPTProvider",
     "gemini": "providers.gemini_provider:GeminiProvider",
     "windsurf": "providers.windsurf_cloud_provider:WindsurfCloudProvider",
