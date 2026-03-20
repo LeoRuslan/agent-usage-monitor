@@ -4,67 +4,84 @@
 from __future__ import annotations
 
 import argparse
-import os
-from typing import Any, Dict, Optional
+import json
+from typing import Optional
 
 from rich.console import Console
 
-from antigravity import AntigravityProbe
-from gemini_cli import GeminiProbe
-from ui import render_antigravity, render_gemini_cli
+from collector import ProviderCollector
+from providers.registry import list_provider_choices
+from ui import render_snapshots
 
 
-def main(provider: Optional[str] = None) -> None:
+def main(
+    provider: Optional[str] = None,
+    output_format: str = "rich",
+    timeout: float = 8.0,
+    refresh_interval: int = 240,
+    verbose: bool = False,
+) -> None:
     """
     Run the usage monitor.
-    
-    Args:
-        provider: Optional provider filter - "antigravity", "gemini", or None for both.
     """
-    verbose = False
-    
-    results: Dict[str, Any] = {}
-    
-    # Run Antigravity if provider is None (all) or specifically "antigravity"
-    if provider is None or provider == "antigravity":
-        ag = AntigravityProbe(verbose=verbose)
-        try:
-            results["antigravity"] = ag.run()
-        except Exception as e:
-            results["antigravity"] = {"ok": False, "reason": f"exception: {e}"}
+    collector = ProviderCollector(
+        timeout=timeout,
+        verbose=verbose,
+        refresh_interval_seconds=refresh_interval,
+    )
+    selected = None if provider is None else [provider]
+    snapshots = collector.collect(selected)
 
-    # Run Gemini CLI if provider is None (all) or specifically "gemini_cli"
-    if provider is None or provider == "gemini_cli":
-        gemini_cli = os.environ.get("GEMINI_CLI_PATH", None)
-        gm = GeminiProbe(gemini_cli=gemini_cli, verbose=verbose)
-        try:
-            results["gemini_cli"] = gm.run()
-        except Exception as e:
-            results["gemini_cli"] = {"ok": False, "reason": f"exception: {e}"}
+    if output_format == "json":
+        payload = {provider_id: snapshot.to_dict() for provider_id, snapshot in snapshots.items()}
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
 
-
-    # Rich Output
     console = Console()
-
-    if "antigravity" in results:
-        render_antigravity(console, results["antigravity"])
-
-    if "gemini_cli" in results:
-        render_gemini_cli(console, results["gemini_cli"])
+    render_snapshots(console, snapshots.values())
 
 
 if __name__ == "__main__":
+    choices = list_provider_choices()
     parser = argparse.ArgumentParser(
-        description="Monitor usage quotas for AI providers (Antigravity, Gemini)"
+        description="Monitor usage quotas for AI providers."
     )
     parser.add_argument(
         "--provider",
-        choices=["antigravity", "gemini_cli", "all"],
+        choices=choices,
         default="all",
-        help="Provider to check: antigravity, gemini_cli, or all (default: all)"
+        help=f"Provider to check: {', '.join(choices)} (default: all)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["rich", "json"],
+        default="rich",
+        help="Output format (default: rich)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=8.0,
+        help="Per-provider timeout in seconds (default: 8.0)",
+    )
+    parser.add_argument(
+        "--refresh-interval",
+        type=int,
+        default=240,
+        help="Next-update interval in seconds (default: 240)",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose debug logging",
     )
     args = parser.parse_args()
-    
-    # Map "all" to None (runs both providers)
+
     provider = None if args.provider == "all" else args.provider
-    main(provider=provider)
+    main(
+        provider=provider,
+        output_format=args.format,
+        timeout=args.timeout,
+        refresh_interval=args.refresh_interval,
+        verbose=args.verbose,
+    )
